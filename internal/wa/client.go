@@ -4,26 +4,30 @@ import (
     "context"
     "fmt"
     "log"
-    "os"
 
     "go.mau.fi/whatsmeow"
     "go.mau.fi/whatsmeow/store/sqlstore"
     "go.mau.fi/whatsmeow/types/events"
     "go.mau.fi/whatsmeow/types"
     _ "github.com/mattn/go-sqlite3"
-    "go.mau.fi/whatsmeow/store"
-    "time"
+    waLog "go.mau.fi/whatsmeow/util/log"
+
+    waProto "go.mau.fi/whatsmeow/binary/proto"
+    "google.golang.org/protobuf/proto"
 )
 
 var Client *whatsmeow.Client
 
 func StartWA() {
-    container, err := sqlstore.New("sqlite3", "file:wa_session.db?_foreign_keys=on", nil)
+    ctx := context.Background()
+
+    logger := waLog.Stdout("db", "DEBUG")
+    container, err := sqlstore.New(ctx, "sqlite3", "file:wa_session.db?_foreign_keys=on", logger)
     if err != nil {
         log.Fatalf("Failed to connect DB: %v", err)
     }
 
-    deviceStore, err := container.GetFirstDevice()
+    deviceStore, err := container.GetFirstDevice(ctx)
     if err != nil {
         log.Fatalf("Failed to get device: %v", err)
     }
@@ -33,7 +37,7 @@ func StartWA() {
     Client.AddEventHandler(handleWAEvent)
 
     if Client.Store.ID == nil {
-        qrChan, _ := Client.GetQRChannel(context.Background())
+        qrChan, _ := Client.GetQRChannel(ctx)
         err = Client.Connect()
         if err != nil {
             log.Fatalf("Failed to connect: %v", err)
@@ -65,7 +69,7 @@ func handleWAEvent(evt interface{}) {
 
 func SendToWhatsApp(number string, msg string) error {
     jid := types.NewJID(number, types.DefaultUserServer)
-    _, err := whatsClient.SendMessage(context.Background(), jid, &waProto.Message{
+    _, err := Client.SendMessage(context.Background(), jid, &waProto.Message{
         Conversation: proto.String(msg),
     })
     return err
@@ -77,12 +81,7 @@ func handleIncomingWA(evt *events.Message) {
 
     fmt.Printf("📩 WA Message from %s: %s\n", sender, msg)
 
-    // TODO:
-    // 1. Cari topik Telegram untuk sender ini
-    // 2. Jika belum ada, buat topik baru dan simpan ke DB
-    // 3. Kirim pesan ke topicGroup dan fullGroup
-    // 4. Kirim sebagai reply di topic
+    // TODO: implement forwarding to Telegram here
 
-    // Contoh kirim ke console
     log.Printf("Pesan masuk dari %s: %s\n", sender, msg)
 }
