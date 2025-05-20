@@ -62,7 +62,7 @@ func StartBot() {
 
 func handleText(m *tele.Message) error {
 	sender := m.Sender
-	senderId := sender.ID
+	senderId := int64(sender.ID)
 
 	text := m.Text
 	lowerText := strings.ToLower(text)
@@ -90,55 +90,67 @@ func handleText(m *tele.Message) error {
 	case "!close":
 		return cmdClose(m)
 	default:
-		return bot.Reply(m, "Perintah tidak dikenal")
+		_, err := bot.Reply(m, "Perintah tidak dikenal")
+		return err
 	}
 }
 
 // !add <telegram_id> <initial>
 func cmdAdd(m *tele.Message, senderId int64, parts []string) error {
 	if !isSuperadmin(senderId) {
-		return bot.Reply(m, "Anda tidak memiliki izin.")
+		_, err := bot.Reply(m, "Anda tidak memiliki izin.")
+		return err
 	}
 	if len(parts) < 3 {
-		return bot.Reply(m, "Format: !add <telegram_id> <initial>")
+		_, err := bot.Reply(m, "Format: !add <telegram_id> <initial>")
+		return err
 	}
 	id, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		return bot.Reply(m, "ID Telegram tidak valid")
+		_, err := bot.Reply(m, "ID Telegram tidak valid")
+		return err
 	}
 	initial := parts[2]
 	err = db.AddUser(id, initial)
 	if err != nil {
-		return bot.Reply(m, "Gagal menambahkan user: "+err.Error())
+		_, err := bot.Reply(m, "Gagal menambahkan user: "+err.Error())
+		return err
 	}
 	users[id] = initial
-	return bot.Reply(m, fmt.Sprintf("User %d dengan inisial %s berhasil ditambahkan", id, initial))
+	_, err = bot.Reply(m, fmt.Sprintf("User %d dengan inisial %s berhasil ditambahkan", id, initial))
+	return err
 }
 
 // !rm <telegram_id>
 func cmdRemove(m *tele.Message, senderId int64, parts []string) error {
 	if !isSuperadmin(senderId) {
-		return bot.Reply(m, "Anda tidak memiliki izin.")
+		_, err := bot.Reply(m, "Anda tidak memiliki izin.")
+		return err
 	}
 	if len(parts) < 2 {
-		return bot.Reply(m, "Format: !rm <telegram_id>")
+		_, err := bot.Reply(m, "Format: !rm <telegram_id>")
+		return err
 	}
 	id, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		return bot.Reply(m, "ID Telegram tidak valid")
+		_, err := bot.Reply(m, "ID Telegram tidak valid")
+		return err
 	}
 	err = db.RemoveUser(id)
 	if err != nil {
-		return bot.Reply(m, "Gagal menghapus user: "+err.Error())
+		_, err := bot.Reply(m, "Gagal menghapus user: "+err.Error())
+		return err
 	}
 	delete(users, id)
-	return bot.Reply(m, fmt.Sprintf("User %d berhasil dihapus", id))
+	_, err = bot.Reply(m, fmt.Sprintf("User %d berhasil dihapus", id))
+	return err
 }
 
 // !chat <nomor> <pesan...>
 func cmdChat(m *tele.Message, senderId int64, parts []string) error {
 	if len(parts) < 3 {
-		return bot.Reply(m, "Format: !chat <nomor> <pesan>")
+		_, err := bot.Reply(m, "Format: !chat <nomor> <pesan>")
+		return err
 	}
 
 	nomor := parts[1]
@@ -147,7 +159,8 @@ func cmdChat(m *tele.Message, senderId int64, parts []string) error {
 	// Cek apakah sudah ada topic berdasarkan WA number
 	topic, err := db.GetTopic(nomor)
 	if err != nil {
-		return bot.Reply(m, "❌ Gagal cek DB.")
+		_, err := bot.Reply(m, "❌ Gagal cek DB.")
+		return err
 	}
 
 	var topicID int64
@@ -158,13 +171,15 @@ func cmdChat(m *tele.Message, senderId int64, parts []string) error {
 		contactName = nomor
 		topicID, err = CreateTopic(contactName)
 		if err != nil {
-			return bot.Reply(m, "❌ Gagal buat topic.")
+			_, err := bot.Reply(m, "❌ Gagal buat topic.")
+			return err
 		}
 
 		// Simpan ke DB
 		err = db.SaveTopic(nomor, contactName, topicID)
 		if err != nil {
-			return bot.Reply(m, "❌ Gagal simpan ke DB.")
+			_, err := bot.Reply(m, "❌ Gagal simpan ke DB.")
+			return err
 		}
 	} else {
 		topicID = topic.TelegramTopicID
@@ -174,7 +189,8 @@ func cmdChat(m *tele.Message, senderId int64, parts []string) error {
 	// Kirim ke WhatsApp
 	err = wa.SendToWhatsApp(nomor, pesan)
 	if err != nil {
-		return bot.Reply(m, "❌ Gagal kirim ke WhatsApp.")
+		_, err := bot.Reply(m, "❌ Gagal kirim ke WhatsApp.")
+		return err
 	}
 
 	// Footer inisial pengirim
@@ -186,11 +202,17 @@ func cmdChat(m *tele.Message, senderId int64, parts []string) error {
 
 	// Kirim ke Telegram topic
 	finalMsg := fmt.Sprintf("📤 *Ke:* %s\n📱 *No:* %s\n\n%s%s", contactName, nomor, pesan, footer)
-	SendToTopic(finalMsg, topicID)
+	err = SendToTopic(finalMsg, topicID)
+	if err != nil {
+		return err
+	}
 
 	// Juga kirim ke full forwarder
 	fullText := fmt.Sprintf("📤 %s (%s): %s%s", contactName, nomor, pesan, footer)
-	SendToFullGroup(fullText)
+	err = SendToFullGroup(fullText)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -202,13 +224,15 @@ func cmdClose(m *tele.Message) error {
 	// Cek topik berdasarkan TelegramTopicID
 	topic, err := db.GetTopicByTelegramID(chatID)
 	if err != nil || topic == nil {
-		return bot.Reply(m, "❌ Topik tidak ditemukan atau sudah ditutup.")
+		_, err := bot.Reply(m, "❌ Topik tidak ditemukan atau sudah ditutup.")
+		return err
 	}
 
 	// Hapus dari database
 	err = db.DeleteTopicByTelegramID(chatID)
 	if err != nil {
-		return bot.Reply(m, "❌ Gagal menghapus topik dari database.")
+		_, err := bot.Reply(m, "❌ Gagal menghapus topik dari database.")
+		return err
 	}
 
 	// Hapus dari memory cache jika ada
@@ -217,9 +241,10 @@ func cmdClose(m *tele.Message) error {
 	// (Opsional) Hapus topic Telegram (jika pakai forum)
 	// bot.DeleteForumTopic(c.Chat(), chatID) // Jika pakai metode forum topic
 
-	return bot.Reply(m, fmt.Sprintf("✅ Topik untuk *%s* (%s) telah ditutup.", topic.ContactName, topic.WaNumber), &tele.SendOptions{
+	_, err = bot.Reply(m, fmt.Sprintf("✅ Topik untuk *%s* (%s) telah ditutup.", topic.ContactName, topic.WaNumber), &tele.SendOptions{
 		ParseMode: tele.ModeMarkdown,
 	})
+	return err
 }
 
 func handleReplyMessage(m *tele.Message, senderId int64) error {
@@ -232,7 +257,8 @@ func handleReplyMessage(m *tele.Message, senderId int64) error {
 	// TODO: cari topic dari chat ID
 	topic, ok := activeTopics[m.Chat.ID]
 	if !ok {
-		return bot.Reply(m, "Topic tidak ditemukan, silakan mulai chat dengan !chat nomor pesan")
+		_, err := bot.Reply(m, "Topic tidak ditemukan, silakan mulai chat dengan !chat nomor pesan")
+		return err
 	}
 
 	initial := users[senderId]
@@ -246,7 +272,8 @@ func handleReplyMessage(m *tele.Message, senderId int64) error {
 	// Kirim ke WhatsApp via WhatsMeow
 	err := wa.SendToWhatsApp(topic.WaNumber, msg)
 	if err != nil {
-		return bot.Reply(m, "❌ Gagal mengirim pesan ke WhatsApp: "+err.Error())
+		_, err := bot.Reply(m, "❌ Gagal mengirim pesan ke WhatsApp: "+err.Error())
+		return err
 	}
 
 	_, err = bot.Send(m.Chat, "Pesan diteruskan ke WhatsApp: "+msg)
