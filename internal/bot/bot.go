@@ -193,23 +193,32 @@ func cmdChat(c tele.Context, senderId int64, parts []string) error {
 }
 
 // !close
-func cmdClose(c tele.Context, senderId int64) error {
-    // Hanya boleh di chat topicGroup
-    if c.Chat().ID != topicGroup {
-        return c.Reply("Perintah !close hanya dapat digunakan di group topic")
+func cmdClose(c tele.Context) error {
+    chatID := c.Chat().ID
+
+    // Cek topik berdasarkan TelegramTopicID
+    topic, err := db.GetTopicByTelegramID(chatID)
+    if err != nil || topic == nil {
+        return c.Reply("❌ Topik tidak ditemukan atau sudah ditutup.")
     }
 
-    topic, err := db.GetTopicByTelegramID(topicGroup)
+    // Hapus dari database
+    err = db.DeleteTopicByTelegramID(chatID)
     if err != nil {
-        return c.Reply("Topic tidak ditemukan")
+        return c.Reply("❌ Gagal menghapus topik dari database.")
     }
 
-    // TODO: Hapus topic di DB dan hapus dari activeTopics
-    delete(activeTopics, topicGroup)
-    // Kirim info ke group
-    _, err = bot.Send(c.Chat(), "Topic telah ditutup dan dihapus dari database.")
-    return err
+    // Hapus dari memory cache jika ada
+    delete(activeTopics, chatID)
+
+    // (Opsional) Hapus topic Telegram (jika pakai forum)
+    // bot.DeleteForumTopic(c.Chat(), chatID) // Jika pakai metode forum topic
+
+    return c.Reply(fmt.Sprintf("✅ Topik untuk *%s* (%s) telah ditutup.", topic.ContactName, topic.WaNumber), &tele.SendOptions{
+        ParseMode: tele.ModeMarkdown,
+    })
 }
+
 
 func handleReplyMessage(c tele.Context, senderId int64) error {
     reply := c.Message().ReplyTo
