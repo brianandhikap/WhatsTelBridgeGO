@@ -1,21 +1,35 @@
+// file main.go
 package main
 
 import (
-    "wa-bridge/internal/bot"
-    "wa-bridge/internal/wa"
-    "wa-bridge/internal/db"
+	"log"
+	"os"
+	"time"
 
-    "github.com/joho/godotenv"
-    "log"
+	"wa-bridge/internal/bot"
+	"wa-bridge/internal/db"
+	"wa-bridge/internal/wa"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
-    err := godotenv.Load()
-    if err != nil {
-        log.Fatal("Error loading .env file")
-    }
+	// Load environment variables from .env file
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("Warning: .env file not found, using environment variables")
+	}
 
-    db.Init()
-    go wa.StartWA()  // WhatsApp
-    bot.StartBot()   // Telegram bot
+	// Initialize database
+	db.InitDB()
+	defer db.CloseDB()
+
+	// Start WhatsApp client
+	go wa.StartWA()
+
+	// Allow some time for WhatsApp to connect
+	time.Sleep(2 * time.Second)
+
+	// Start Telegram bot
+	bot.StartBot()
 }
