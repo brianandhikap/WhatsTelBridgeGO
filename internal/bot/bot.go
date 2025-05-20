@@ -222,14 +222,14 @@ func cmdClose(m *tele.Message) error {
 	chatID := m.Chat.ID
 
 	// Cek topik berdasarkan TelegramTopicID
-	topic, err := db.GetTopicByTelegramID(chatID)
+	topic, err := db.GetTopicByTelegramTopicID(chatID)
 	if err != nil || topic == nil {
 		_, err := bot.Reply(m, "❌ Topik tidak ditemukan atau sudah ditutup.")
 		return err
 	}
 
 	// Hapus dari database
-	err = db.DeleteTopicByTelegramID(chatID)
+	err = db.DeleteTopic(topic.WANumber)
 	if err != nil {
 		_, err := bot.Reply(m, "❌ Gagal menghapus topik dari database.")
 		return err
@@ -241,7 +241,7 @@ func cmdClose(m *tele.Message) error {
 	// (Opsional) Hapus topic Telegram (jika pakai forum)
 	// bot.DeleteForumTopic(c.Chat(), chatID) // Jika pakai metode forum topic
 
-	_, err = bot.Reply(m, fmt.Sprintf("✅ Topik untuk *%s* (%s) telah ditutup.", topic.ContactName, topic.WaNumber), &tele.SendOptions{
+	_, err = bot.Reply(m, fmt.Sprintf("✅ Topik untuk *%s* (%s) telah ditutup.", topic.ContactName, topic.WANumber), &tele.SendOptions{
 		ParseMode: tele.ModeMarkdown,
 	})
 	return err
@@ -270,7 +270,7 @@ func handleReplyMessage(m *tele.Message, senderId int64) error {
 	msg := m.Text + footer
 
 	// Kirim ke WhatsApp via WhatsMeow
-	err := wa.SendToWhatsApp(topic.WaNumber, msg)
+	err := wa.SendToWhatsApp(topic.WANumber, msg)
 	if err != nil {
 		_, err := bot.Reply(m, "❌ Gagal mengirim pesan ke WhatsApp: "+err.Error())
 		return err
