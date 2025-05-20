@@ -10,7 +10,7 @@ import (
 
     "wa-bridge/internal/db"
 
-    tele "github.com/tucnak/telebot/v2"
+    tele "gopkg.in/tucnak/telebot.v2"
 )
 
 var (
