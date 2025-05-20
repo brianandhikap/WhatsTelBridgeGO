@@ -137,36 +137,59 @@ func cmdChat(c tele.Context, senderId int64, parts []string) error {
     if len(parts) < 3 {
         return c.Reply("Format: !chat <nomor> <pesan>")
     }
+
     nomor := parts[1]
     pesan := strings.Join(parts[2:], " ")
 
-    // Cek apakah nomor sudah ada topic aktif
-    topic, err := db.GetTopicByTelegramID(int64(c.Chat().ID))
+    // Cek apakah sudah ada topic berdasarkan WA number
+    topic, err := db.GetTopic(nomor)
     if err != nil {
-        // buat topic baru
-        contactName := nomor // default pakai nomor dulu
-        topic = &db.Topic{
-            WaNumber: nomor,
-            ContactName: contactName,
-            TelegramTopicID: c.Chat().ID,
-        }
-        // TODO: Simpan ke DB
-        // Untuk sekarang kita simpan di memory saja (Nanti disambungkan ke DB)
-        activeTopics[c.Chat().ID] = topic
+        return c.Reply("❌ Gagal cek DB.")
     }
 
-    // TODO: Kirim pesan ke WhatsApp (via WhatsMeow nanti)
+    var topicID int64
+    var contactName string
 
-    // Kirim pesan ke Telegram topicGroup dengan footer inisial
+    if topic == nil {
+        // Belum ada: Buat topic baru
+        contactName = nomor
+        topicID, err = CreateTopic(contactName)
+        if err != nil {
+            return c.Reply("❌ Gagal buat topic.")
+        }
+
+        // Simpan ke DB
+        err = db.SaveTopic(nomor, contactName, topicID)
+        if err != nil {
+            return c.Reply("❌ Gagal simpan ke DB.")
+        }
+    } else {
+        topicID = topic.TelegramTopicID
+        contactName = topic.ContactName
+    }
+
+    // Kirim ke WhatsApp
+    err = SendToWhatsApp(nomor, pesan)
+    if err != nil {
+        return c.Reply("❌ Gagal kirim ke WhatsApp.")
+    }
+
+    // Footer inisial pengirim
     initial := users[senderId]
     footer := ""
     if initial != "" {
         footer = fmt.Sprintf("\n\n-%s", initial)
     }
 
-    msg := pesan + footer
-    _, err = bot.Send(c.Chat(), msg)
-    return err
+    // Kirim ke Telegram topic
+    finalMsg := fmt.Sprintf("📤 *Ke:* %s\n📱 *No:* %s\n\n%s%s", contactName, nomor, pesan, footer)
+    SendToTopic(finalMsg, topicID)
+
+    // Juga kirim ke full forwarder
+    fullText := fmt.Sprintf("📤 %s (%s): %s%s", contactName, nomor, pesan, footer)
+    SendToFullGroup(fullText)
+
+    return nil
 }
 
 // !close
