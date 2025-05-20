@@ -1,11 +1,12 @@
 package main
 
 import (
-    "log"
     "wa-bridge/internal/bot"
+    "wa-bridge/internal/wa"
     "wa-bridge/internal/db"
 
     "github.com/joho/godotenv"
+    "log"
 )
 
 func main() {
@@ -14,6 +15,7 @@ func main() {
         log.Fatal("Error loading .env file")
     }
 
-    db.InitDB()
-    bot.StartBot()
+    db.Init()
+    go wa.StartWA()  // WhatsApp
+    bot.StartBot()   // Telegram bot
 }
