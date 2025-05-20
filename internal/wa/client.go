@@ -63,6 +63,14 @@ func handleWAEvent(evt interface{}) {
     }
 }
 
+func SendToWhatsApp(number string, msg string) error {
+    jid := types.NewJID(number, types.DefaultUserServer)
+    _, err := whatsClient.SendMessage(context.Background(), jid, &waProto.Message{
+        Conversation: proto.String(msg),
+    })
+    return err
+}
+
 func handleIncomingWA(evt *events.Message) {
     msg := evt.Message.GetConversation()
     sender := evt.Info.Sender.User
